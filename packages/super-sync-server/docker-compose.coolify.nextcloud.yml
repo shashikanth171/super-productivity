@@ -44,11 +44,15 @@ services:
     # matter which branch this resource points at. Building from the checkout is
     # what makes PLAINSPACE_HOST below do anything.
     #
-    # Paths resolve relative to THIS file, so the context reaches the repo root
-    # where the Dockerfile and the monorepo package files live.
+    # `context: .` is the REPO ROOT, not this file's directory: compose resolves a
+    # relative context against the project directory, and Coolify passes
+    # `--project-directory <repo root>`. A `../..` here resolved to the PARENT of
+    # the repo and the build failed with "failed to read dockerfile". Running
+    # compose from this file's own directory therefore also needs
+    # `--project-directory ../..`.
     image: ${SP_APP_IMAGE:-sp-app-local:coolify}
     build:
-      context: ../..
+      context: .
       dockerfile: Dockerfile
       args:
         # Build-time only; the image does not use them at runtime. Dummy defaults
