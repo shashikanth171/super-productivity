@@ -10,12 +10,16 @@
 # nothing here that can fail to generate a credential.
 #
 # Setup:
-#   1. Coolify → New resource → Docker Compose, point at this repository and this file.
+#   1. Coolify → New resource → Docker Compose, point at your FORK and this file.
+#      The `build:` block on app compiles the checkout, so the branch you select is
+#      the code that runs. Pointing this at upstream and relying on `image:` would
+#      silently deploy upstream master instead.
 #   2. Select the one service: app.
 #   3. Assign your domain to app. Nothing else needs a domain.
-#   4. Set the WEBDAV_* values below to your Nextcloud instance (or override them
-#      in the UI).
-#   5. Deploy.
+#   4. Set WEBDAV_BASE_URL, and PLAINSPACE_HOST if you run your own Plainspace.
+#   5. Deploy. The first build compiles the whole monorepo and takes several
+#      minutes; later deploys reuse cached layers. Coolify needs a GitHub token
+#      with `packages: write` if it pushes the built image to ghcr.io.
 #
 # On the WEBDAV_* values: the app's entrypoint writes them into
 # ./assets/sync-config-default-override.json, which the client reads ONLY when no
@@ -34,7 +38,23 @@
 
 services:
   app:
-    image: ${SP_APP_IMAGE:-johannesjo/super-productivity:latest}
+    # Built, not pulled. `johannesjo/super-productivity:latest` is published by
+    # upstream CI from `master` on a GitHub *release* only, so it never contains
+    # anything from this fork — a plain `image:` here deploys upstream master no
+    # matter which branch this resource points at. Building from the checkout is
+    # what makes PLAINSPACE_HOST below do anything.
+    #
+    # Paths resolve relative to THIS file, so the context reaches the repo root
+    # where the Dockerfile and the monorepo package files live.
+    image: ${SP_APP_IMAGE:-sp-app-local:coolify}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        # Build-time only; the image does not use them at runtime. Dummy defaults
+        # keep the build reproducible without a secret in the compose file.
+        UNSPLASH_KEY: ${UNSPLASH_KEY:-DUMMY_UNSPLASH_KEY}
+        UNSPLASH_CLIENT_ID: ${UNSPLASH_CLIENT_ID:-DUMMY_UNSPLASH_CLIENT_ID}
     restart: unless-stopped
     environment:
       # Nextcloud's WebDAV root. NOT http://localhost:2345/ — that was the bundled
@@ -50,6 +70,14 @@ services:
       - SYNC_INTERVAL=${SYNC_INTERVAL:-15}
       - IS_COMPRESSION_ENABLED=${IS_COMPRESSION_ENABLED:-true}
       - IS_ENCRYPTION_ENABLED=${IS_ENCRYPTION_ENABLED:-false}
+      # Default Plainspace host, for a self-hosted Plainspace. Read at RUNTIME
+      # from the override asset docker-entrypoint.sh writes at container start —
+      # not from env.generated.ts, which is compiled into the image at build time
+      # and so cannot see a variable set on an already-built container.
+      #
+      # A prefill, not a lock: each user can still change the host in the Plainspace
+      # provider settings. Leave it unset to keep plainspace.org.
+      - PLAINSPACE_HOST=${PLAINSPACE_HOST:-}
     # Container port only. `expose` publishes nothing to the host; with no
     # `ports:` entry this is what tells Coolify's proxy where to route.
     expose:
