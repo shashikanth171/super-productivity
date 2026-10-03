@@ -1,0 +1,75 @@
+# Nextcloud-only deployment for Coolify.
+#
+# One container: the web app. Nothing else.
+#
+# Why this exists separately from docker-compose.coolify.yml: that file deploys
+# the SuperSync server and its database for self-hosters who want their own sync
+# backend. If you sync against an existing Nextcloud, neither is needed — the app
+# talks to your Nextcloud's WebDAV endpoint straight from the browser. A single
+# static container has no secrets, no volumes and no migrations, so there is
+# nothing here that can fail to generate a credential.
+#
+# Setup:
+#   1. Coolify → New resource → Docker Compose, point at this repository and this file.
+#   2. Select the one service: app.
+#   3. Assign your domain to app. Nothing else needs a domain.
+#   4. Set the WEBDAV_* values below to your Nextcloud instance (or override them
+#      in the UI).
+#   5. Deploy.
+#
+# On the WEBDAV_* values: the app's entrypoint writes them into
+# ./assets/sync-config-default-override.json, which the client reads ONLY when no
+# sync provider has been saved yet (sync-config.service.ts). They prefills a form;
+# they are not a lock. Anyone who has already saved sync settings keeps their own
+# values, and everyone can change them in Settings → Sync at any time.
+#
+# Setting these also preselects the WebDAV provider tab, because the entrypoint
+# switches syncProvider to "WebDAV" whenever any WEBDAV_* variable is present.
+# Users of another provider switch tabs once and it sticks.
+#
+# Leave them all unset for a shared or multi-user instance and let each person
+# enter their own Nextcloud URL and credentials on first use. Changing an env var
+# afterwards needs a container restart, and only affects users who have not saved
+# their settings yet.
+
+services:
+  app:
+    image: ${SP_APP_IMAGE:-johannesjo/super-productivity:latest}
+    restart: unless-stopped
+    environment:
+      # Nextcloud's WebDAV root. NOT http://localhost:2345/ — that was the bundled
+      # WebDAV container from the original stack, and a browser resolves localhost
+      # to the user's own machine, so it would sync nowhere.
+      - WEBDAV_BASE_URL=${WEBDAV_BASE_URL:?set this to your Nextcloud root, e.g. https://cloud.example.com}
+      # Credentials are per user. Prefill these only for a single-user instance;
+      # prefer a Nextcloud app password over the account login.
+      - WEBDAV_USERNAME=${WEBDAV_USERNAME:-}
+      - WEBDAV_SYNC_FOLDER_PATH=${WEBDAV_SYNC_FOLDER_PATH:-/}
+      - WEBDAV_PASSWORD=${WEBDAV_PASSWORD:-}
+      # Minutes between syncs.
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-15}
+      - IS_COMPRESSION_ENABLED=${IS_COMPRESSION_ENABLED:-true}
+      - IS_ENCRYPTION_ENABLED=${IS_ENCRYPTION_ENABLED:-false}
+    # Container port only. `expose` publishes nothing to the host; with no
+    # `ports:` entry this is what tells Coolify's proxy where to route.
+    expose:
+      - '80'
+    healthcheck:
+      # curl, not wget: the image is nginx:1 on Debian with jq and curl installed
+      # by the Dockerfile. The app is an SPA, so / is index.html and returns 200
+      # as soon as nginx is up.
+      test:
+        [
+          'CMD',
+          'curl',
+          '--fail',
+          '--silent',
+          '--output',
+          '/dev/null',
+          'http://127.0.0.1:80/',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 256m
