@@ -41,6 +41,31 @@ describe('PlainspaceConnectDialogComponent', () => {
     expect(component.host()).toBe('https://plainspace.org');
   });
 
+  it('renders the connect link with a resolved URL, not a stringified signal', () => {
+    // Regression guard for the bug the template shipped: `[href]="connectUrl"`
+    // passed the computed's FUNCTION to the sanitizer, which stringified it, so
+    // the anchor pointed at `...?()=>{if(Jt(n),...)throw n.error;...}` — the
+    // minified source of the signal accessor. Angular does not type-check a
+    // missing call, so only a rendered-DOM assertion catches it.
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('a[href]') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe(
+      'https://plainspace.org/connect/super-productivity',
+    );
+  });
+
+  it('points the connect link at the deployment host once resolved', () => {
+    component.host.set('https://plainspace.apps.swecha.org');
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('a[href]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe(
+      'https://plainspace.apps.swecha.org/connect/super-productivity',
+    );
+  });
+
   it('does nothing when the token is blank', async () => {
     component.token = '   ';
     await component.connect();
