@@ -94,9 +94,8 @@ describe('coolify deployment compose', () => {
     // the real domain.
     expect(file).toContain('WEBAUTHN_RP_ID=${SERVICE_FQDN_SUPERSYNC}');
     expect(file).toContain('WEBAUTHN_ORIGIN=${SERVICE_URL_SUPERSYNC_1900}');
-    // Declared bare so Coolify's proxy knows which container port to route to;
-    // `expose` publishes nothing to the host.
-    expect(file).toMatch(/^\s*- SERVICE_URL_SUPERSYNC_1900$/m);
+    // With no `ports:` anywhere, `expose` is the only declaration of the
+    // container port Coolify's proxy routes to.
     expect(file).toMatch(/^\s*expose:\n\s*- '1900'$/m);
   });
 
@@ -117,8 +116,10 @@ describe('coolify deployment compose', () => {
     );
     // `compose` selects a recovery path that shells out to `docker compose run`
     // on the HOST — no Docker CLI or socket inside a Coolify container, so a
-    // failed migration would have no recovery path at all.
-    expect(file).toContain('MIGRATE_RECOVERY_RUNTIME=${MIGRATE_RECOVERY_RUNTIME:-}');
+    // failed migration would have no recovery path at all. migrate-deploy.sh
+    // treats unset and empty identically, so the variable is left out entirely
+    // rather than set to an empty string.
+    expect(config()).not.toMatch(/^\s*- MIGRATE_RECOVERY_RUNTIME=/m);
     expect(file).not.toContain('MIGRATE_RECOVERY_RUNTIME=compose');
     // The pool bounds are required or REQUIRE_DATABASE_POOL_LIMITS rejects the URL.
     expect(file).toContain('REQUIRE_DATABASE_POOL_LIMITS=true');
@@ -126,8 +127,6 @@ describe('coolify deployment compose', () => {
   });
 
   it('keeps the host-level hardening the production compose depends on', () => {
-    const file = config();
-
     // dockerd SIGKILLs a probe that outlives `timeout`, orphaning pg_isready
     // into the postmaster; it then exits 2 and the postmaster treats that as a
     // backend crash, restarting the whole cluster. (#9695)
