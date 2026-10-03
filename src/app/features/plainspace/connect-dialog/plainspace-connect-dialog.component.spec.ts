@@ -36,7 +36,9 @@ describe('PlainspaceConnectDialogComponent', () => {
 
   it('renders and uses the provided host', () => {
     expect(component).toBeTruthy();
-    expect(component.host).toBe('https://plainspace.org');
+    // A signal: the deployment's PLAINSPACE_HOST settles after construction, so
+    // the value is read, not captured.
+    expect(component.host()).toBe('https://plainspace.org');
   });
 
   it('does nothing when the token is blank', async () => {

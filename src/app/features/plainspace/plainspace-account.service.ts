@@ -6,8 +6,6 @@ import { PlainspaceAccount } from './plainspace-account.model';
 import { PlainspaceApiService } from '../issue/providers/plainspace/plainspace-api.service';
 import { DEFAULT_PLAINSPACE_CFG } from '../issue/providers/plainspace/plainspace-cfg-form.const';
 
-const DEFAULT_HOST = 'https://plainspace.org';
-
 /**
  * Why a connect attempt ended. `aborted` means the user disconnected while the
  * check was in flight — not a failure worth reporting to them.
@@ -40,7 +38,7 @@ export class PlainspaceAccountService {
    */
   async connect(
     token: string,
-    host: string = DEFAULT_HOST,
+    host: string = DEFAULT_PLAINSPACE_CFG.host ?? '',
   ): Promise<PlainspaceConnectResult> {
     const logoutVersion = this._logoutVersion;
     const res = await firstValueFrom(

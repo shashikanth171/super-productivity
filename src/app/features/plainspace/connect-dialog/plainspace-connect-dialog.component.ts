@@ -24,6 +24,8 @@ import {
   PlainspaceAccountService,
   PlainspaceConnectResult,
 } from '../plainspace-account.service';
+import { DEFAULT_PLAINSPACE_CFG } from '../../issue/providers/plainspace/plainspace-cfg-form.const';
+import { resolveDefaultPlainspaceHost } from '../../issue/providers/plainspace/plainspace-default-host.util';
 
 export interface PlainspaceConnectDialogData {
   host?: string | null;
@@ -63,7 +65,12 @@ export class PlainspaceConnectDialogComponent {
   });
 
   readonly T = T;
-  readonly host = this._data?.host || 'https://plainspace.org';
+  // Resolves the deployment's PLAINSPACE_HOST when the caller passes no host, so a
+  // self-hosted instance links to its own connect page instead of plainspace.org.
+  // Starts as the hosted default and settles once the override asset answers — the
+  // dialog is rendered synchronously by MatDialog, so the async value cannot be
+  // part of a field initializer the way it was before.
+  readonly host = signal(this._data?.host ?? DEFAULT_PLAINSPACE_CFG.host ?? '');
   // Deep link to the dedicated "from Super Productivity" onboarding flow, which
   // guides token creation — instead of dropping the user on the bare marketing
   // host. Trailing slash stripped so we never produce a double slash.
@@ -72,11 +79,26 @@ export class PlainspaceConnectDialogComponent {
   // the user back to the app. Only Electron registers the `superproductivity://`
   // scheme (mobile uses a different one, web none), so gate it on IS_ELECTRON —
   // otherwise the page would render dead "Open Super Productivity" buttons.
-  readonly connectUrl =
-    `${this.host.replace(/\/+$/, '')}/connect/super-productivity` +
-    (IS_ELECTRON
-      ? `?return=${encodeURIComponent('superproductivity://plainspace-connect')}`
-      : '');
+  readonly connectUrl = computed(
+    () =>
+      `${this.host().replace(/\/+$/, '')}/connect/super-productivity` +
+      (IS_ELECTRON
+        ? `?return=${encodeURIComponent('superproductivity://plainspace-connect')}`
+        : ''),
+  );
+
+  constructor() {
+    // Only when the caller gave no host: an explicit host is the caller's choice
+    // and must win. Resolved here rather than inside connect() so token
+    // validation stays a single request with no asset fetch in front of it.
+    if (!this._data?.host) {
+      void resolveDefaultPlainspaceHost().then((host) => {
+        if (host) {
+          this.host.set(host);
+        }
+      });
+    }
+  }
   token = '';
   readonly isConnecting = signal(false);
   // The failure to show, or null for none. `aborted` is deliberately silent:
@@ -100,7 +122,7 @@ export class PlainspaceConnectDialogComponent {
     this.error.set(null);
     const res: PlainspaceConnectResult = await this._accountService.connect(
       token,
-      this.host,
+      this.host(),
     );
     if (res === 'ok') {
       this._dialogRef.close(true);

@@ -29,6 +29,15 @@ fi
 if [ -n "${IS_ENCRYPTION_ENABLED}" ]; then
   JSON=$(echo "$JSON" | jq ".isEncryptionEnabled |= $IS_ENCRYPTION_ENABLED")
 fi
+# Default Plainspace host for self-hosted instances. Lives in the same override
+# file because it is the same kind of thing: a deployment-time default the user
+# can still override in the provider settings. Issue-provider defaults are NOT
+# read from this file today (see plainspace-default-host.util.ts), so this key is
+# only read at the point that builds a new provider config — a user who already
+# saved a host keeps it.
+if [ -n "${PLAINSPACE_HOST}" ]; then
+  JSON=$(echo "$JSON" | jq ".plainspaceHost |= \"$PLAINSPACE_HOST\"")
+fi
 if [ "$JSON" != "{}" ]; then
   # Write the resultant json
   echo "$JSON" >$JSON_PATH

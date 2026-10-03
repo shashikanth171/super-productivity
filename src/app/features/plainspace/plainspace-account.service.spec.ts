@@ -85,6 +85,19 @@ describe('PlainspaceAccountService', () => {
     expect(service.isLoggedIn()).toBe(false);
   });
 
+  it('validates against an explicitly passed host, for a self-hosted instance', async () => {
+    // What PLAINSPACE_HOST ends up feeding: the connect dialog resolves the
+    // deployment host and hands it in, so a self-hosted instance's token is
+    // checked against its own API rather than plainspace.org.
+    const p = service.connect('pat_x', 'https://ps.internal');
+    httpMock
+      .expectOne('https://ps.internal/api/integration/me')
+      .flush({ email: 'me@example.com', projects: [] });
+
+    expect(await p).toBe('ok');
+    expect(service.host()).toBe('https://ps.internal');
+  });
+
   it('logout clears the account and storage', async () => {
     const p = service.connect('pat_x');
     httpMock.expectOne(ME_URL).flush({ email: 'me@example.com', projects: [] });
