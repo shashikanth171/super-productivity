@@ -165,7 +165,11 @@ export class PlainspaceShareService {
     const connected = await firstValueFrom(
       this._matDialog
         .open(PlainspaceConnectDialogComponent, {
-          data: { host: DEFAULT_PLAINSPACE_CFG.host },
+          // No `host`: passing DEFAULT_PLAINSPACE_CFG.host here would read as
+          // "the caller chose this host" and make the dialog skip its own
+          // resolution, so a self-hosted deployment's PLAINSPACE_HOST was
+          // ignored and the dialog linked to plainspace.org.
+          data: {},
         })
         .afterClosed(),
     );

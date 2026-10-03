@@ -89,13 +89,13 @@ describe('PlainspaceAccountService', () => {
     // What PLAINSPACE_HOST ends up feeding: the connect dialog resolves the
     // deployment host and hands it in, so a self-hosted instance's token is
     // checked against its own API rather than plainspace.org.
-    const p = service.connect('pat_x', 'https://ps.internal');
+    const p = service.connect('pat_x', 'https://plainspace.apps.swecha.org');
     httpMock
-      .expectOne('https://ps.internal/api/integration/me')
+      .expectOne('https://plainspace.apps.swecha.org/api/integration/me')
       .flush({ email: 'me@example.com', projects: [] });
 
     expect(await p).toBe('ok');
-    expect(service.host()).toBe('https://ps.internal');
+    expect(service.host()).toBe('https://plainspace.apps.swecha.org');
   });
 
   it('logout clears the account and storage', async () => {

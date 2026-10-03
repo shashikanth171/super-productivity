@@ -27,6 +27,13 @@ describe('PlainspaceShareService', () => {
   const openedConnectDialog = (): boolean =>
     matDialog.open.calls.allArgs().some((a) => a[0] === PlainspaceConnectDialogComponent);
 
+  const connectDialogData = (): Record<string, unknown> | undefined =>
+    matDialog.open.calls
+      .allArgs()
+      .find((a) => a[0] === PlainspaceConnectDialogComponent)?.[1]?.data as
+      | Record<string, unknown>
+      | undefined;
+
   beforeEach(() => {
     localStorage.setItem(
       LS.PLAINSPACE_ACCOUNT,
@@ -222,6 +229,47 @@ describe('PlainspaceShareService', () => {
         type: 'ERROR',
         msg: T.PLAINSPACE.OPEN_FAILED,
       });
+    });
+  });
+
+  describe('connect dialog host', () => {
+    // Regression guard for the bug this file's host argument caused: passing
+    // `host: DEFAULT_PLAINSPACE_CFG.host` read as "the caller chose plainspace.org",
+    // so the dialog's `if (!this._data?.host)` guard never resolved the
+    // deployment's PLAINSPACE_HOST and the "Open Plainspace" link pointed at
+    // plainspace.org on a self-hosted instance.
+    // The account is a signal on the real service, already loaded from
+    // localStorage by the outer beforeEach — so clearing storage here would not
+    // log it out. spyOn is what actually changes what the share service reads.
+    it('passes no host, leaving resolution to the dialog', async () => {
+      spyOn(account, 'isLoggedIn').and.returnValue(false);
+
+      await service.shareProjectOnPlainspace('p1', 'Proj');
+
+      expect(openedConnectDialog()).toBe(true);
+      expect(connectDialogData()?.host).toBeUndefined();
+    });
+
+    it('binds the provider to the deployment host, not plainspace.org', async () => {
+      // Guards the whole path, not just the argument: the account written after
+      // connecting carries the host the dialog resolved, so the bound provider
+      // and the space URL must follow it.
+      spyOn(account, 'account').and.returnValue({
+        host: 'https://plainspace.apps.swecha.org',
+        token: 'pat_x',
+        email: 'e',
+      } as never);
+      spaceResult = { action: 'create' };
+
+      await service.shareProjectOnPlainspace('p1', 'Proj');
+
+      expect(store.dispatch).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          issueProvider: jasmine.objectContaining({
+            host: 'https://plainspace.apps.swecha.org',
+          }),
+        }),
+      );
     });
   });
 });
